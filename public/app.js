@@ -1166,25 +1166,25 @@ function counter4DoctorHtml() {
 
       <div class="summary-grid">
 
-        <div class="summary-item reading-card ${readingTone(flags.bp, 'bp')}">
-
-          ${readingFlagHtml(flags.bp, 'bp')}
+        <div class="summary-item reading-card">
 
           <small>COUNTER 1 — BLOOD PRESSURE & PULSE</small>
 
-          <strong>${p.bpSystolic && p.bpDiastolic ? `${p.bpSystolic} / ${p.bpDiastolic} mmHg ${p.pulseBpm ? `• Pulse: ${p.pulseBpm} BPM` : ''}` : 'Pending Check'}</strong>
+          <strong class="reading-value">${p.bpSystolic && p.bpDiastolic ? `${esc(p.bpSystolic)} / ${esc(p.bpDiastolic)} <small>mmHg</small>` : 'Not recorded'}</strong>
+          ${readingFlagHtml(flags.bp, 'bp')}
+          <span class="reading-pulse">Pulse: <b>${p.pulseBpm ? `${esc(p.pulseBpm)} BPM` : 'Not recorded'}</b></span>
 
           <span>${p.bpAt ? `Recorded by ${p.bpBy || 'Staff'}` : 'Not recorded'}</span>
 
         </div>
 
-        <div class="summary-item reading-card ${readingTone(flags.sugar, 'sugar')}">
-
-          ${readingFlagHtml(flags.sugar, 'sugar')}
+        <div class="summary-item reading-card">
 
           <small>COUNTER 2 — BLOOD SUGAR</small>
 
-          <strong>${p.bloodSugar ? `${p.bloodSugar} mg/dL (${p.sugarType || 'Random'})` : 'Pending Check'}</strong>
+          <strong class="reading-value">${p.bloodSugar ? `${esc(p.bloodSugar)} <small>mg/dL</small>` : 'Not recorded'}</strong>
+          ${readingFlagHtml(flags.sugar, 'sugar')}
+          <span class="reading-pulse">Test: <b>${esc(p.sugarType || 'Not recorded')}</b></span>
 
           <span>${p.sugarAt ? `Recorded by ${p.sugarBy || 'Staff'}` : 'Not recorded'}</span>
 
