@@ -13,7 +13,19 @@ export default {
       headers.set('Cookie', request.headers.get('Cookie') || '');
       headers.set('X-Forwarded-Proto', 'https');
       headers.set('X-Forwarded-For', request.headers.get('CF-Connecting-IP') || '');
-      const result = await fetch(target, { method: 'POST', headers, body: request.body, redirect: 'manual' });
+      const body = await request.text();
+      let result = await fetch(target, { method: 'POST', headers, body, redirect: 'manual' });
+      if ([502,503,504].includes(result.status) && ['auth.status','auth.staff_login','auth.admin_login'].includes(JSON.parse(body).action)) {
+        await result.body?.cancel();
+        // A sleeping Render service can reject POSTs until a health request wakes it.
+        const health = await fetch(new URL('/healthz', target), { signal: AbortSignal.timeout(60000) });
+        await health.body?.cancel();
+        if (health.ok) result = await fetch(target, { method: 'POST', headers, body, redirect: 'manual' });
+      }
+      if (!result.headers.get('Content-Type')?.includes('application/json')) {
+        await result.body?.cancel();
+        return Response.json({ok:false,error:'The server is starting. Please try signing in again in a moment.'},{status:503,headers:{'Cache-Control':'no-store'}});
+      }
       const reply = new Response(result.body, result);
       reply.headers.set('Cache-Control', 'no-store');
       return reply;

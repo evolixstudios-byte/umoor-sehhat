@@ -178,6 +178,9 @@ function hasPerm(perm) {
 
 
 async function call(action, data = {}, extra = {}) {
+  const loginButton = action === 'auth.staff_login' ? document.getElementById('staff-signin-btn') : action === 'auth.admin_login' ? document.querySelector('#admin-login-form button[type="submit"]') : null;
+  const loginLabel = loginButton?.innerHTML;
+  if (loginButton) { loginButton.disabled = true; loginButton.textContent = 'Signing in…'; }
 
   try {
 
@@ -207,6 +210,7 @@ async function call(action, data = {}, extra = {}) {
 
 
 
+    if (!contentType.includes('application/json')) throw new Error('The server is starting or temporarily unavailable. Please try again in a moment.');
     const result = await res.json();
 
     if (!result.ok) {
@@ -246,6 +250,9 @@ async function call(action, data = {}, extra = {}) {
     notify(err.message || 'Cannot reach server.', true);
 
     throw err;
+
+  } finally {
+    if (loginButton?.isConnected) { loginButton.disabled = false; loginButton.innerHTML = loginLabel; }
 
   }
 
@@ -3388,6 +3395,16 @@ async function submitStaffLogin() {
   const name = (nameInput ? nameInput.value : state.fields.loginStaffName || '').trim();
 
   const pin = state.fields.loginPin;
+
+  if (name.includes('@')) {
+    state.loginMode = 'admin';
+    state.fields.loginPin = '';
+    render();
+    document.getElementById('admin-email').value = name;
+    document.getElementById('admin-password')?.focus();
+    notify('Use your Super Admin password to sign in with an email address.');
+    return;
+  }
 
   if (!name || !pin) {
 
