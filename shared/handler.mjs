@@ -388,7 +388,7 @@ async function handleRequest(input) {
     }
   }
 
-  if (['participant.list', 'participant.get', 'participant.update'].includes(action)) {
+  if (['participant.list', 'participant.get', 'participant.update', 'participant.delete'].includes(action)) {
     if (!hasPermission(userPerms, PERMISSIONS.PARTICIPANT_VIEW)) return response({ ok:false, error:'Participant directory access denied.' },403);
     if (action === 'participant.list') {
       const query = String(payload.query || '').trim().slice(0,120);
@@ -403,11 +403,31 @@ async function handleRequest(input) {
       const participants = await db.prepare(`SELECT id,token,serial,its,name,phone,age,gender,registered_at FROM participants ${where} ORDER BY CASE WHEN token = ? THEN 0 ELSE 1 END, token DESC LIMIT ? OFFSET ?`).all(...values,token,limit,offset);
       return response({ok:true,participants:participants.map(p=>({...p,tokenFormatted:formatTokenNumber(p.token)})),total,limit,offset});
     }
-    if (action === 'participant.update' && session.type !== 'admin') return response({ok:false,error:'Only Super Admin can edit participant records.'},403);
-    const data = action === 'participant.update' ? payload.data || payload : payload;
+    if (['participant.update','participant.delete'].includes(action) && session.type !== 'admin') return response({ok:false,error:'Only Super Admin can edit or delete participant records.'},403);
+    const data = ['participant.update','participant.delete'].includes(action) ? payload.data || payload : payload;
     const existing = await db.prepare('SELECT * FROM participants WHERE id = ?').get(String(data.id || ''));
     if (!existing) return response({ok:false,error:'Participant not found.'},404);
     if (action === 'participant.get') return response({ok:true,data:formatParticipant(existing,userPerms)});
+    if (action === 'participant.delete') {
+      if (!data.expectedUpdatedAt) return response({ok:false,error:'Reopen the record before deleting.'},400);
+      await db.exec('BEGIN IMMEDIATE;');
+      try {
+        const deleted = await db.prepare('DELETE FROM participants WHERE id = ? AND updated_at = ? RETURNING id').get(existing.id,data.expectedUpdatedAt);
+        if (!deleted) {
+          await db.exec('ROLLBACK;');
+          return response({ok:false,error:'This record has changed. Reopen it before deleting.'},409);
+        }
+        // Old registration retries must not return a deleted participant or create it again.
+        await db.prepare("UPDATE idempotency_keys SET response_body = ?, response_status = 410 WHERE action = 'participant.register' AND response_body LIKE ?").run(JSON.stringify({ok:false,error:'This registration was deleted. Start a new registration.'}),`%"id":"${existing.id}"%`);
+        await db.exec('COMMIT;');
+      } catch (err) {
+        await db.exec('ROLLBACK;');
+        throw err;
+      }
+      await queueSync('participant.delete',{its:existing.its});
+      await logAudit({actorType:'admin',actorId:session.id,actorName:'Super Admin',actorRole:'Super Admin',action:'participant.delete',targetType:'participant',targetId:existing.id,details:{serial:existing.serial},ip:clientIp});
+      return response({ok:true,message:'Participant and screening report deleted.'});
+    }
     const changes = data.changes;
     const fields = {name:'name',its:'its',phone:'phone',age:'age',gender:'gender',medicalHistory:'medical_history',bpSystolic:'bp_systolic',bpDiastolic:'bp_diastolic',pulseBpm:'pulse_bpm',bloodSugar:'blood_sugar',sugarType:'sugar_type',height:'height',weight:'weight',advice:'advice'};
     if (!changes || typeof changes !== 'object' || Array.isArray(changes) || Object.keys(changes).some(key=>!Object.hasOwn(fields,key))) return response({ok:false,error:'Invalid editable fields. Token and serial cannot be changed.'},400);

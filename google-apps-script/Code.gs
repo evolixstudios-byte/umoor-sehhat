@@ -27,7 +27,7 @@ function doPost(e) {
     if (!requiredSecret || requiredSecret.length < 24 || request.secret !== requiredSecret) throw new Error('Access denied.');
     var action = request.action;
     var data = request.data || {};
-    var isWrite = action === 'participant.register' || action === 'participant.update' || action === 'stage.save';
+    var isWrite = action === 'participant.register' || action === 'participant.update' || action === 'participant.delete' || action === 'stage.save';
     var lock = LockService.getScriptLock();
     if (isWrite) lock.waitLock(20000);
     try {
@@ -37,6 +37,7 @@ function doPost(e) {
       else if (action === 'participant.get') result = getParticipant_(sheet, data);
       else if (action === 'participant.register') result = registerParticipant_(sheet, data);
       else if (action === 'participant.update') result = updateParticipant_(sheet, data);
+      else if (action === 'participant.delete') result = deleteParticipant_(sheet, data);
       else if (action === 'stage.save') result = saveStage_(sheet, data);
       else throw new Error('Unsupported operation.');
       SpreadsheetApp.flush();
@@ -173,6 +174,11 @@ function registerParticipant_(sheet,data) {
   sheet.getRange(target,9).setNumberFormat('dd mmm yyyy, hh:mm');
   sheet.getRange(target,23).setNumberFormat('dd mmm yyyy, hh:mm');
   return recordAt_(sheet,target);
+}
+function deleteParticipant_(sheet,data) {
+  var its=onlyDigits_(data.its,8,'ITS number'), i=rowIndex_(sheet,its);
+  if (i>=0) sheet.deleteRow(i);
+  return {deleted:i>=0};
 }
 function updateParticipant_(sheet,data) {
   var p=registration_(data), previousIts=onlyDigits_(data.previousIts || p.its,8,'Previous ITS number'), i=rowIndex_(sheet,previousIts);

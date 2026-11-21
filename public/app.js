@@ -4,6 +4,10 @@ import { HISTORY_OPTIONS, selectHistory, getReadingFlags } from './clinical.js';
 
 const SITE = 'https://evolix-studio.in/';
 
+function evolixBrandHtml() {
+  return `<a class="evolix-credit" href="${SITE}" target="_blank" rel="noopener noreferrer" aria-label="Developed by Evolix Studio (opens in a new tab)"><img src="/assets/evolix-studio-logo.webp" width="36" height="36" alt="Evolix Studio logo" /><span><small>Developed by</small><strong>Evolix Studio</strong></span></a>`;
+}
+
 
 
 const COUNTERS_CONFIG = [
@@ -635,6 +639,8 @@ function loginViewHtml() {
 
           `}
 
+          <div class="login-branding">${evolixBrandHtml()}</div>
+
         </div>
 
 
@@ -642,8 +648,6 @@ function loginViewHtml() {
         <div class="login-meta">
 
           <span>Organized by Ratangarh Kheri Jamiat</span>
-
-          <span>Developed by <a href="${SITE}" target="_blank" rel="noopener noreferrer">Evolix Studio</a></span>
 
         </div>
 
@@ -1233,6 +1237,8 @@ function counter4DoctorHtml() {
 
           <span class="tiny">${icon('shield', 'sm')} Confidential consultation notes</span>
 
+          <button class="btn secondary" type="button" id="doctor-print-btn" ${state.isSubmitting ? 'disabled' : ''}>Save &amp; Print Full Report</button>
+
           <button class="btn primary save-btn-large" type="button" id="save-counter-btn" ${state.isSubmitting ? 'disabled' : ''}>
 
             ${icon('check', 'sm')} Save Doctor's Advice & Reset
@@ -1374,6 +1380,50 @@ function registrationSuccessViewHtml() {
 }
 
 
+
+function printableMedicalReportHtml() {
+  const p = state.participant;
+  if (!p || state.page !== 'counter' || state.activeCounter !== 'doctor') return '';
+  const flags = getReadingFlags(p);
+  const stamp = value => value ? new Date(value).toLocaleString('en-IN') : 'Not recorded';
+  const recorded = (by,at) => `${esc(by || '—')}<br>${esc(stamp(at))}`;
+  return `<article id="printable-medical-report" aria-label="Participant health screening report">
+    <header class="report-header">
+      <img src="/assets/umoor-sehat.png" alt="Umoor Sehat logo" width="80" height="88" />
+      <div><h1>UMOOR SEHAT</h1><p>Ratangarh Kheri Jamiat Health Camp</p><h2>Health Screening &amp; Consultation Report</h2></div>
+      <img src="/assets/ratangarh-kheri-jamiat.png" alt="Toloba Ratangarh Kheri logo" width="80" height="88" />
+    </header>
+    <dl class="report-identity">
+      <div><dt>Participant</dt><dd>${esc(p.name)}</dd></div><div><dt>Token / Serial</dt><dd>#${esc(p.tokenFormatted)} / ${esc(p.serial)}</dd></div>
+      <div><dt>ITS number</dt><dd>${esc(p.its)}</dd></div><div><dt>Mobile number</dt><dd>${esc(p.phone)}</dd></div>
+      <div><dt>Age / Gender</dt><dd>${esc(p.age)} years / ${esc(p.gender)}</dd></div><div><dt>Consent</dt><dd>${p.consent ? 'Recorded' : 'Not recorded'}</dd></div>
+      <div><dt>Registered</dt><dd>${esc(stamp(p.registeredAt))}</dd></div><div><dt>Registered by</dt><dd>${esc(p.registeredBy || '—')}</dd></div>
+    </dl>
+    ${medicalHistoryHtml(p.medicalHistory)}
+    <h2>Screening readings</h2>
+    <table class="report-readings"><thead><tr><th scope="col">Assessment</th><th scope="col">Result</th><th scope="col">Recorded by / time</th></tr></thead><tbody>
+      <tr><th scope="row">Blood pressure</th><td>${p.bpSystolic && p.bpDiastolic ? `${esc(p.bpSystolic)} / ${esc(p.bpDiastolic)} mmHg` : 'Not recorded'}<br>${readingFlagHtml(flags.bp,'bp')}</td><td>${recorded(p.bpBy,p.bpAt)}</td></tr>
+      <tr><th scope="row">Pulse</th><td>${p.pulseBpm ? `${esc(p.pulseBpm)} BPM` : 'Not recorded'}</td><td>${recorded(p.bpBy,p.bpAt)}</td></tr>
+      <tr><th scope="row">Blood sugar</th><td>${p.bloodSugar ? `${esc(p.bloodSugar)} mg/dL (${esc(p.sugarType || 'Unspecified')})` : 'Not recorded'}<br>${readingFlagHtml(flags.sugar,'sugar')}</td><td>${recorded(p.sugarBy,p.sugarAt)}</td></tr>
+      <tr><th scope="row">Height / Weight</th><td>${p.height ? `${esc(p.height)} cm` : '—'} / ${p.weight ? `${esc(p.weight)} kg` : '—'}</td><td>${recorded(p.measurementsBy,p.measurementsAt)}</td></tr>
+      <tr><th scope="row">BMI</th><td>${p.bmi ? `${esc(p.bmi)} kg/m² — ${esc(getBmiCategory(p.bmi))}` : 'Not recorded'}</td><td>${recorded(p.measurementsBy,p.measurementsAt)}</td></tr>
+    </tbody></table>
+    <section class="report-advice"><h2>Doctor's clinical notes / prescription</h2><div class="report-prescription">${esc(p.advice || 'Not recorded')}</div><p>Doctor: ${esc(p.doctorBy || '—')} · ${esc(stamp(p.doctorAt))}</p></section>
+    <p class="report-note">Screening flags support clinical review and are not a diagnosis. Medical history is self-reported.</p>
+    <footer class="report-footer"><span>Confidential participant copy · Printed ${esc(stamp(new Date().toISOString()))}</span>${evolixBrandHtml()}</footer>
+  </article>`;
+}
+
+async function printMedicalReport() {
+  const report = document.getElementById('printable-medical-report');
+  if (!report) return;
+  try {
+    await Promise.all([...report.querySelectorAll('img')].map(img => img.decode()));
+    window.print();
+  } catch {
+    notify('Could not prepare the report logos. Please retry printing.',true);
+  }
+}
 
 function printableSlipHtml() {
 
@@ -2970,6 +3020,7 @@ function modalHtml() {
             <button type="button" class="btn secondary close-modal-btn">Close</button>
 
             ${state.user?.type === 'admin' ? '<button type="button" class="btn primary" id="edit-participant-btn">Edit information</button>' : ''}
+            ${state.user?.type === 'admin' ? '<button type="button" class="btn danger" id="delete-participant-btn">Delete participant</button>' : ''}
             ${state.user?.type === 'admin' || COUNTERS_CONFIG.some(counter=>hasPerm(counter.perm)) ? '<button type="button" class="btn secondary" id="open-in-counter-btn">Open in Screening Counter</button>' : ''}
 
           </div>
@@ -3052,6 +3103,8 @@ function appShellHtml(inner) {
 
 
 
+        <div class="app-branding">${evolixBrandHtml()}</div>
+
         <main class="main-content">
 
           <!-- Counter Swapping Pills -->
@@ -3115,7 +3168,7 @@ function appShellHtml(inner) {
 
           <span>© ${new Date().getFullYear()} Umoor Sehat · Ratangarh Kheri Jamiat</span>
 
-          <span>Developed by <a href="${SITE}" target="_blank" rel="noopener noreferrer">Evolix Studio</a></span>
+          ${evolixBrandHtml()}
 
         </footer>
 
@@ -3126,6 +3179,7 @@ function appShellHtml(inner) {
     ${modalHtml()}
 
     ${printableSlipHtml()}
+    ${printableMedicalReportHtml()}
 
     <div class="toast-area" id="toasts">${toastHtml()}</div>
 
@@ -3457,7 +3511,7 @@ async function findParticipantToken() {
 
 
 
-async function saveCounterData(counterId) {
+async function saveCounterData(counterId, keepParticipant = false) {
 
   if (!state.participant || state.isSubmitting) return;
 
@@ -3509,11 +3563,11 @@ async function saveCounterData(counterId) {
 
       notify(`✓ Token #${String(state.participant.token).padStart(3, '0')} — Measurement Saved Successfully!`);
 
-      // AUTOMATIC RESET TO TOKEN ENTRY SCREEN FOR NEXT PARTICIPANT
-
-      resetCounterForm();
+      if (keepParticipant) state.participant = res.data;
+      else resetCounterForm();
 
       render();
+      return true;
 
     }
 
@@ -3560,6 +3614,27 @@ function resetCounterForm() {
 
 
 function attachEvents() {
+  document.getElementById('doctor-print-btn')?.addEventListener('click',async()=>{
+    if (await saveCounterData('doctor',true)) await printMedicalReport();
+  });
+  document.getElementById('delete-participant-btn')?.addEventListener('click',async event=>{
+    const p=state.modalData;
+    if (!confirm(`Permanently delete ${p.name} (Token #${p.tokenFormatted}) and the entire screening report? This cannot be undone.`)) return;
+    const button=event.currentTarget;
+    button.disabled=true;
+    try {
+      const result=await call('participant.delete',{id:p.id,expectedUpdatedAt:p.updatedAt});
+      if(result?.ok) {
+        if(state.participant?.id===p.id) resetCounterForm();
+        if(state.regSuccess?.data?.id===p.id) state.regSuccess=null;
+        if(state.regConflict?.existing?.id===p.id) state.regConflict=null;
+        state.modal=null;state.modalData=null;
+        if(state.directory.offset>0 && state.directory.participants.length===1) state.directory.offset=Math.max(0,state.directory.offset-20);
+        await Promise.all([loadDirectory(),loadAdminData()]);
+        notify('Participant and screening report deleted.');render();
+      }
+    } catch {} finally {button.disabled=false;}
+  });
   document.getElementById('participant-search-form')?.addEventListener('submit', async event => {
     event.preventDefault();
     state.directory.query=document.getElementById('participant-search-input').value.trim();

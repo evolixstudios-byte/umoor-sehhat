@@ -393,14 +393,35 @@
 }
 
 /* Printable Token Slip */
+#printable-medical-report{display:none}
 #printable-token-slip {
   display: none;
 }
 
 @media print {
+  html,body{background:#fff!important}
   body * {
     visibility: hidden !important;
   }
+  .app-shell,.modal-backdrop,.toast-area{display:none!important}
+  body:has(#printable-medical-report) #printable-token-slip{display:none!important}
+  #printable-medical-report,#printable-medical-report *{visibility:visible!important}
+  #printable-medical-report{display:block!important;position:static;width:100%;font:10.5pt/1.35 Arial,sans-serif;color:#111;background:#fff;overflow-wrap:anywhere;page:medical-report}
+  @page medical-report{size:A4;margin:12mm}
+  .report-header{display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:center;border-bottom:2px solid #164c3c;padding-bottom:12px}
+  .report-header img{object-fit:contain;flex-shrink:0;width:72px;height:76px}
+  .report-header h1{font-size:23pt;margin:0;color:#164c3c}.report-header p{font-size:10pt;margin:4px 0}.report-header h2{font-size:13pt;margin:8px 0 0}
+  .report-identity{display:grid;grid-template-columns:1fr 1fr;gap:8px 22px;padding:12px 0;border-bottom:1px solid #aaa;margin:0}
+  .report-identity div{break-inside:avoid}.report-identity dt{font-size:9pt;color:#444}.report-identity dd{margin:2px 0 0;font-weight:700}
+  #printable-medical-report h2,#printable-medical-report h3{font-size:13pt;margin:12px 0 8px;break-after:avoid}
+  #printable-medical-report .health-badge{font-size:9pt;padding:5px 7px;border:1px solid currentColor;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+  #printable-medical-report .history-summary{margin:0 0 14px}
+  .report-readings{width:100%;border-collapse:collapse;font-size:10pt;table-layout:fixed}
+  .report-readings th,.report-readings td{padding:7px;border:1px solid #aaa;text-align:left;vertical-align:top}
+  .report-readings th:first-child{width:24%}.report-readings th:last-child{width:29%}.report-readings tr{break-inside:avoid}
+  .report-prescription{white-space:pre-wrap;border:1px solid #aaa;padding:12px;line-height:1.45;orphans:3;widows:3}
+  .report-advice p,.report-note{font-size:9pt;color:#444}.report-footer{display:flex;align-items:center;justify-content:space-between;gap:15px;border-top:1px solid #aaa;margin-top:18px;padding-top:10px;break-inside:avoid;font-size:8pt}
+  .report-footer .evolix-credit{color:#111}.report-footer .evolix-credit img{width:30px;height:30px}
   #printable-token-slip, #printable-token-slip * {
     visibility: visible !important;
   }
@@ -435,6 +456,18 @@
 
 
 /* Native inputs stay at least 16px to avoid focus zoom on iOS. */
+.evolix-credit{display:inline-flex;align-items:center;gap:10px;min-height:44px;color:#292923;text-decoration:none;border-radius:8px;text-align:left;flex-shrink:0}
+.evolix-credit img{width:36px;height:36px;object-fit:contain;flex-shrink:0}
+.evolix-credit small{display:block;color:#667269;font-size:12px;font-weight:500;line-height:1.4}
+.evolix-credit strong{display:block;font-size:15px;font-weight:750;line-height:1.4;letter-spacing:.1px}
+.evolix-credit:focus-visible{outline:3px solid #b88731;outline-offset:5px}
+.evolix-credit:hover strong{text-decoration:underline;text-underline-offset:3px}
+.login-branding{display:flex;justify-content:center;width:100%;max-width:420px;margin-top:20px;padding-top:18px;border-top:1px solid #e4e9e3}
+.app-branding{display:flex;justify-content:flex-end;padding:8px 45px;border-bottom:1px solid #e5ebe6;background:#fff}
+.site-footer .evolix-credit{color:#292923}
+@media(max-width:980px){.app-branding{padding:8px 24px}}
+@media(max-width:690px){.app-branding{justify-content:center;padding:8px 17px}}
+@media print{.app-branding{display:none!important}}
 html { -webkit-text-size-adjust: 100%; scroll-padding-bottom: 100px; }
 input.control, select.control, textarea.control { font-size: 16px !important; }
 button, a, label.choice { touch-action: manipulation; }
