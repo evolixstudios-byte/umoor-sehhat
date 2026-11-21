@@ -1,0 +1,23 @@
+{
+  "name": "umoor-sehat-camp",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Umoor Sehat health screening workflow, Ratangarh Kheri Jamiat",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node server.mjs",
+    "dev:netlify": "npx netlify dev",
+    "test": "node --test tests/*.test.mjs",
+    "migrate:accounts": "node --env-file-if-exists=.env scripts/migrate-accounts.mjs"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "dependencies": {
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.17"
+  }
+}
