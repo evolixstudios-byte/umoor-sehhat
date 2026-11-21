@@ -180,21 +180,31 @@ function hasPerm(perm) {
 async function call(action, data = {}, extra = {}) {
   const loginButton = action === 'auth.staff_login' ? document.getElementById('staff-signin-btn') : action === 'auth.admin_login' ? document.querySelector('#admin-login-form button[type="submit"]') : null;
   const loginLabel = loginButton?.innerHTML;
-  if (loginButton) { loginButton.disabled = true; loginButton.textContent = 'Signing in…'; }
+  if (loginButton) { loginButton.disabled = true; loginButton.textContent = 'Connecting… Please wait'; }
 
   try {
 
-    const res = await fetch('/api', {
-
-      method: 'POST',
-
-      credentials: 'same-origin',
-
-      headers: { 'Content-Type': 'application/json' },
-
-      body: JSON.stringify({ action, data, ...extra }),
-
-    });
+    const canRetry = ['auth.status','auth.staff_login','auth.admin_login'].includes(action);
+    let res;
+    for (let attempt = 0; attempt < (canRetry ? 4 : 1); attempt++) {
+      try {
+        res = await fetch('/api', {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action, data, ...extra }),
+          ...(canRetry ? { signal: AbortSignal.timeout(20000) } : {}),
+        });
+        if (!canRetry || ![502,503,504].includes(res.status)) break;
+        await res.body?.cancel();
+      } catch (err) {
+        if (!canRetry) throw err;
+      }
+      if (attempt === 3) throw new Error('Connecting is taking longer than expected. Please try signing in again.');
+      if (loginButton) loginButton.textContent = 'Server is waking up… Please wait';
+      const loadingLabel = document.querySelector('.loading-screen span:last-child');
+      if (loadingLabel) loadingLabel.textContent = 'Server is waking up… Please wait';
+      await new Promise(resolve => setTimeout(resolve, 3000));
+    }
 
 
 
