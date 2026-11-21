@@ -94,3 +94,18 @@ To create an Admin, open Super Admin staff management, add/edit an account, and 
 
 If using optional Google Sheets sync, redeploy the updated Apps Script so ITS corrections locate the original row through `previousIts` and preserve its token and serial.
 Default staff are seeded only when the staff table is empty. Renamed or deleted default accounts are not recreated on subsequent restarts.
+
+
+## Current deployment
+
+- Frontend: https://umoor-sehhat.pages.dev
+- Backend: https://umoor-sehhat-api.onrender.com
+- Render service: `srv-dc0tjhuc6qcc73fdnqi0`, in Evolix's workspace, Singapore, free plan.
+- Neon project: `square-king-54133227`, production branch, Singapore. Existing staff and Super Admin accounts were transferred with their original hashes and permissions. No demo participants were transferred.
+- Source: https://github.com/evolixstudios-byte/umoor-sehhat
+
+Render starts with `node --env-file=/etc/secrets/umoor.env server.mjs`; the private file is configured through Render secret files. It is not stored in Git. Cloudflare stores `API_ORIGIN` and `PROXY_SECRET` as Pages secrets. Keep both proxy secrets identical when rotating credentials.
+
+The Cloudflare project uses direct upload. Future frontend changes require `npx wrangler pages deploy public --project-name umoor-sehhat --branch main` under the same Cloudflare account. No frontend Git automation or custom domain is configured. Keep the database connection in Render, and use the hosted app for shared camp records; local SQLite is a separate development copy.
+
+Verified after deployment: frontend loading, secure staff cookies, Super Admin login, registration of token `001`, BP/sugar/BMI saves, Janab detailed read-only access, and rejection of Janab edits. The temporary verification participant was removed and the next token reset to `001` with no other patients present.

@@ -1,5 +1,7 @@
 # Umoor Sehat
 
+Live app: [umoor-sehhat.pages.dev](https://umoor-sehhat.pages.dev)
+
 Health camp registration and four screening counters, with staff permissions and an administrator dashboard.
 
 ```sh
