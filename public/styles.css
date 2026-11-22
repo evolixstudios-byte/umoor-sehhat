@@ -411,16 +411,16 @@
   .report-header{display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:center;border-bottom:2px solid #164c3c;padding-bottom:12px}
   .report-header img{object-fit:contain;flex-shrink:0;width:72px;height:76px}
   .report-header h1{font-size:23pt;margin:0;color:#164c3c}.report-header p{font-size:10pt;margin:4px 0}.report-header h2{font-size:13pt;margin:8px 0 0}
-  .report-identity{display:grid;grid-template-columns:1fr 1fr;gap:8px 22px;padding:12px 0;border-bottom:1px solid #aaa;margin:0}
+  .report-identity{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px 16px;padding:12px 0;border-bottom:1px solid #aaa;margin:0}
   .report-identity div{break-inside:avoid}.report-identity dt{font-size:9pt;color:#444}.report-identity dd{margin:2px 0 0;font-weight:700}
   #printable-medical-report h2,#printable-medical-report h3{font-size:13pt;margin:12px 0 8px;break-after:avoid}
   #printable-medical-report .health-badge{font-size:9pt;padding:5px 7px;border:1px solid currentColor;print-color-adjust:exact;-webkit-print-color-adjust:exact}
   #printable-medical-report .history-summary{margin:0 0 14px}
   .report-readings{width:100%;border-collapse:collapse;font-size:10pt;table-layout:fixed}
-  .report-readings th,.report-readings td{padding:7px;border:1px solid #aaa;text-align:left;vertical-align:top}
+  .report-readings th,.report-readings td{padding:6px;border:1px solid #aaa;text-align:left;vertical-align:top}
   .report-readings th:first-child{width:24%}.report-readings th:last-child{width:29%}.report-readings tr{break-inside:avoid}
-  .report-prescription{white-space:pre-wrap;border:1px solid #aaa;padding:12px;line-height:1.45;orphans:3;widows:3}
-  .report-advice p,.report-note{font-size:9pt;color:#444}.report-footer{display:flex;align-items:center;justify-content:space-between;gap:15px;border-top:1px solid #aaa;margin-top:18px;padding-top:10px;break-inside:avoid;font-size:8pt}
+  .report-handwriting{break-inside:avoid}.report-writing-space{height:60mm;border:1px solid #aaa;border-radius:3px}.report-signature{font-size:9pt;margin:10px 0}
+  .report-note{font-size:9pt;color:#444}.report-footer{display:flex;align-items:center;justify-content:space-between;gap:15px;border-top:1px solid #aaa;margin-top:18px;padding-top:10px;break-inside:avoid;font-size:8pt}
   .report-footer .evolix-credit{color:#111}.report-footer .evolix-credit img{width:30px;height:30px}
   #printable-token-slip, #printable-token-slip * {
     visibility: visible !important;

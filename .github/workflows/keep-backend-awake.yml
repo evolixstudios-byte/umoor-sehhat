@@ -1,0 +1,24 @@
+name: Keep backend awake
+
+on:
+  schedule:
+    - cron: '2-59/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-health-check
+  cancel-in-progress: false
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Wake and check backend
+        run: |
+          curl --fail --silent --show-error --retry 2 --retry-all-errors --retry-delay 5 --max-time 75 \
+            'https://umoor-sehhat-api.onrender.com/healthz' -o health.json
+          python3 -c "import json; assert json.load(open('health.json')).get('ok') is True, 'Backend is not ready'"

@@ -1254,7 +1254,7 @@ function counter4DoctorHtml() {
 
           <span class="tiny">${icon('shield', 'sm')} Confidential consultation notes</span>
 
-          <button class="btn secondary" type="button" id="doctor-print-btn" ${state.isSubmitting ? 'disabled' : ''}>Save &amp; Print Full Report</button>
+          <button class="btn secondary" type="button" id="doctor-print-btn" ${state.isSubmitting ? 'disabled' : ''}>Print Report for Doctor</button>
 
           <button class="btn primary save-btn-large" type="button" id="save-counter-btn" ${state.isSubmitting ? 'disabled' : ''}>
 
@@ -1419,13 +1419,11 @@ function printableMedicalReportHtml() {
     ${medicalHistoryHtml(p.medicalHistory)}
     <h2>Screening readings</h2>
     <table class="report-readings"><thead><tr><th scope="col">Assessment</th><th scope="col">Result</th><th scope="col">Recorded by / time</th></tr></thead><tbody>
-      <tr><th scope="row">Blood pressure</th><td>${p.bpSystolic && p.bpDiastolic ? `${esc(p.bpSystolic)} / ${esc(p.bpDiastolic)} mmHg` : 'Not recorded'}<br>${readingFlagHtml(flags.bp,'bp')}</td><td>${recorded(p.bpBy,p.bpAt)}</td></tr>
-      <tr><th scope="row">Pulse</th><td>${p.pulseBpm ? `${esc(p.pulseBpm)} BPM` : 'Not recorded'}</td><td>${recorded(p.bpBy,p.bpAt)}</td></tr>
+      <tr><th scope="row">Blood pressure &amp; pulse</th><td>${p.bpSystolic && p.bpDiastolic ? `${esc(p.bpSystolic)} / ${esc(p.bpDiastolic)} mmHg` : 'Not recorded'}<br>Pulse: ${p.pulseBpm ? `${esc(p.pulseBpm)} BPM` : 'Not recorded'}<br>${readingFlagHtml(flags.bp,'bp')}</td><td>${recorded(p.bpBy,p.bpAt)}</td></tr>
       <tr><th scope="row">Blood sugar</th><td>${p.bloodSugar ? `${esc(p.bloodSugar)} mg/dL (${esc(p.sugarType || 'Unspecified')})` : 'Not recorded'}<br>${readingFlagHtml(flags.sugar,'sugar')}</td><td>${recorded(p.sugarBy,p.sugarAt)}</td></tr>
-      <tr><th scope="row">Height / Weight</th><td>${p.height ? `${esc(p.height)} cm` : '—'} / ${p.weight ? `${esc(p.weight)} kg` : '—'}</td><td>${recorded(p.measurementsBy,p.measurementsAt)}</td></tr>
-      <tr><th scope="row">BMI</th><td>${p.bmi ? `${esc(p.bmi)} kg/m² — ${esc(getBmiCategory(p.bmi))}` : 'Not recorded'}</td><td>${recorded(p.measurementsBy,p.measurementsAt)}</td></tr>
+      <tr><th scope="row">Height / Weight / BMI</th><td>${p.height ? `${esc(p.height)} cm` : '—'} / ${p.weight ? `${esc(p.weight)} kg` : '—'}<br>BMI: ${p.bmi ? `${esc(p.bmi)} kg/m² — ${esc(getBmiCategory(p.bmi))}` : 'Not recorded'}</td><td>${recorded(p.measurementsBy,p.measurementsAt)}</td></tr>
     </tbody></table>
-    <section class="report-advice"><h2>Doctor's clinical notes / prescription</h2><div class="report-prescription">${esc(p.advice || 'Not recorded')}</div><p>Doctor: ${esc(p.doctorBy || '—')} · ${esc(stamp(p.doctorAt))}</p></section>
+    <section class="report-handwriting"><h2>Doctor's Prescription</h2><div class="report-writing-space" aria-label="Blank space for the doctor to write the prescription by hand"></div><p class="report-signature">Doctor's name: ____________________ &nbsp; Signature: ____________________ &nbsp; Date: ____________</p></section>
     <p class="report-note">Screening flags support clinical review and are not a diagnosis. Medical history is self-reported.</p>
     <footer class="report-footer"><span>Confidential participant copy · Printed ${esc(stamp(new Date().toISOString()))}</span>${evolixBrandHtml()}</footer>
   </article>`;
@@ -3538,7 +3536,7 @@ async function findParticipantToken() {
 
 
 
-async function saveCounterData(counterId, keepParticipant = false) {
+async function saveCounterData(counterId) {
 
   if (!state.participant || state.isSubmitting) return;
 
@@ -3590,8 +3588,7 @@ async function saveCounterData(counterId, keepParticipant = false) {
 
       notify(`✓ Token #${String(state.participant.token).padStart(3, '0')} — Measurement Saved Successfully!`);
 
-      if (keepParticipant) state.participant = res.data;
-      else resetCounterForm();
+      resetCounterForm();
 
       render();
       return true;
@@ -3641,9 +3638,7 @@ function resetCounterForm() {
 
 
 function attachEvents() {
-  document.getElementById('doctor-print-btn')?.addEventListener('click',async()=>{
-    if (await saveCounterData('doctor',true)) await printMedicalReport();
-  });
+  document.getElementById('doctor-print-btn')?.addEventListener('click',printMedicalReport);
   document.getElementById('delete-participant-btn')?.addEventListener('click',async event=>{
     const p=state.modalData;
     if (!confirm(`Permanently delete ${p.name} (Token #${p.tokenFormatted}) and the entire screening report? This cannot be undone.`)) return;
