@@ -94,6 +94,16 @@ function rowIndex_(sheet, its) {
   for (var i=0;i<rows.length;i++) if (String(rows[i][C.its]).trim() === its) return i+2;
   return -1;
 }
+function participantRow_(sheet,data) {
+  if (data.serial) {
+    var serial=String(data.serial).trim();
+    if (!/^US-\d+$/.test(serial)) throw new Error('Invalid participant serial.');
+    var rows=rows_(sheet);
+    for(var i=0;i<rows.length;i++) if(String(rows[i][C.serial]).trim()===serial) return i+2;
+    return -1;
+  }
+  return rowIndex_(sheet,onlyDigits_(data.its,8,'ITS number'));
+}
 function onlyDigits_(input,len,label) {
   var s = String(input == null ? '' : input).trim();
   if (!new RegExp('^[0-9]{'+len+'}$').test(s)) throw new Error(label+' must contain exactly '+len+' digits.');
@@ -119,7 +129,7 @@ function registration_(data) {
   if (history != null && (!Array.isArray(history) || !history.length || history.some(function(id){return ['bp','sugar','none'].indexOf(id)<0;}) || new Set(history).size !== history.length || (history.indexOf('none')>=0 && history.length!==1))) throw new Error('Invalid medical history.');
   return {
     medicalHistory:history || null,
-    its:onlyDigits_(data.its,8,'ITS number'),
+    its:String(data.its == null ? '' : data.its).trim() ? onlyDigits_(data.its,8,'ITS number') : '',
     name:safeText_(data.name,120,'Name'),
     phone:onlyDigits_(data.phone,10,'Mobile number'),
     age:number_(data.age,1,120,'Age'), gender:gender
@@ -150,14 +160,17 @@ function record_(row) {
 }
 function recordAt_(sheet,rowNumber) { return record_(sheet.getRange(rowNumber,1,1,HEADERS.length).getDisplayValues()[0]); }
 function getParticipant_(sheet,data) {
-  var its=onlyDigits_(data.its,8,'ITS number');
-  var i=rowIndex_(sheet,its);
-  if (i<0) throw new Error('Participant not found. Register this ITS number first.');
+  var i=participantRow_(sheet,data);
+  if (i<0) throw new Error('Participant not found. Register the participant first.');
   return recordAt_(sheet,i);
 }
 function registerParticipant_(sheet,data) {
   var p=registration_(data);
-  if (rowIndex_(sheet,p.its)!==-1) throw new Error('This ITS number is already registered. Search for the existing participant instead.');
+  if (data.serial) {
+    var existing=participantRow_(sheet,data);
+    if(existing>=0) return recordAt_(sheet,existing);
+  }
+  if (p.its && rowIndex_(sheet,p.its)!==-1) throw new Error('This ITS number is already registered. Search for the existing participant instead.');
   var now = new Date(), row=Array(HEADERS.length).fill('');
   var tokenVal = data.token ? ('000' + data.token).slice(-Math.max(3, String(data.token).length)) : '';
   row[C.token]=tokenVal;
@@ -176,14 +189,14 @@ function registerParticipant_(sheet,data) {
   return recordAt_(sheet,target);
 }
 function deleteParticipant_(sheet,data) {
-  var its=onlyDigits_(data.its,8,'ITS number'), i=rowIndex_(sheet,its);
+  var i=participantRow_(sheet,data);
   if (i>=0) sheet.deleteRow(i);
   return {deleted:i>=0};
 }
 function updateParticipant_(sheet,data) {
-  var p=registration_(data), previousIts=onlyDigits_(data.previousIts || p.its,8,'Previous ITS number'), i=rowIndex_(sheet,previousIts);
+  var p=registration_(data), i=participantRow_(sheet,{serial:data.serial,its:data.previousIts || p.its});
   if (i<0) throw new Error('Participant not found.');
-  var duplicate=rowIndex_(sheet,p.its);
+  var duplicate=p.its ? rowIndex_(sheet,p.its) : -1;
   if (duplicate>=0 && duplicate!==i) throw new Error('This ITS number is already registered.');
   sheet.getRange(i,C.its+1).setValue(p.its);
   sheet.getRange(i,C.name+1,1,4).setValues([[p.name,p.phone,p.age,p.gender]]);
@@ -192,9 +205,8 @@ function updateParticipant_(sheet,data) {
   return recordAt_(sheet,i);
 }
 function saveStage_(sheet,data) {
-  var its=onlyDigits_(data.its,8,'ITS number');
-  var i=rowIndex_(sheet,its);
-  if (i<0) throw new Error('Participant not found. Register this ITS number first.');
+  var i=participantRow_(sheet,data);
+  if (i<0) throw new Error('Participant not found. Register the participant first.');
   var now=new Date(), stage=String(data.stage||'');
   if (stage==='bp') {
     var sys=number_(data.systolic,50,300,'Systolic BP');

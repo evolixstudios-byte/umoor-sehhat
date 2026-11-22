@@ -622,3 +622,44 @@ test('Super Admin can delete a participant without touching staff or reusing tok
   assert.match(audit.body,/participant.delete/);
   assert.match(audit.body,new RegExp(p.id));
 });
+
+test('Registration without ITS supports multiple people, token lookup and safe retries',async()=>{
+ const admin=await callApi('auth.admin_login',{},'',{email:ADMIN_EMAIL,password:NEW_ADMIN_PASS});const cookie=parseCookie(admin);
+ const base={name:'No ITS Participant',phone:'9123456789',age:42,gender:'Female',consent:true,medicalHistory:['none']};
+ const first=await callApi('participant.register',{...base,clientRequestId:'no-its-first'},cookie);assert.equal(first.status,201);
+ const p=JSON.parse(first.body).data;assert.equal(p.its,null);
+ const retry=await callApi('participant.register',{...base,clientRequestId:'no-its-first'},cookie);assert.equal(JSON.parse(retry.body).data.id,p.id);
+ const second=await callApi('participant.register',{...base,name:'Another Participant',its:''},cookie);assert.equal(second.status,201);assert.equal(JSON.parse(second.body).token,p.token+1);
+ const found=await callApi('participant.find_token',{},cookie,{token:p.token});assert.equal(JSON.parse(found.body).data.id,p.id);
+ const search=await callApi('participant.fallback_search',{},cookie,{query:base.phone});assert.ok(JSON.parse(search.body).results.some(row=>row.token===p.token));
+ const byName=await callApi('participant.fallback_search',{},cookie,{query:base.name.toUpperCase()});assert.ok(JSON.parse(byName.body).results.some(row=>row.token===p.token));
+ const invalid=await callApi('participant.register',{...base,its:'bad'},cookie);assert.equal(invalid.status,400);
+ const missingPhone=await callApi('participant.register',{...base,phone:''},cookie);assert.equal(missingPhone.status,400);
+ const csv=await callApi('reports.export',{},cookie);assert.match(csv.body,/No ITS Participant/);assert.ok(!csv.body.includes(',null,'));
+ const update=await callApi('participant.update',{id:p.id,expectedUpdatedAt:p.updatedAt,changes:{name:'Updated No ITS'}},cookie);assert.equal(update.status,200);assert.equal(JSON.parse(update.body).data.its,null);
+ const concurrent=await Promise.all([1,2,3].map(i=>callApi('participant.register',{...base,name:'Concurrent No ITS '+i},cookie)));
+ assert.ok(concurrent.every(result=>result.status===201));assert.equal(new Set(concurrent.map(result=>JSON.parse(result.body).token)).size,3);
+});
+
+test('Doctors correct only BP and sugar with concurrency protection and old/new audit values',async()=>{
+ const admin=await callApi('auth.admin_login',{},'',{email:ADMIN_EMAIL,password:NEW_ADMIN_PASS});const superCookie=parseCookie(admin);
+ const created=await callApi('staff.create',{},superCookie,{name:'Correction Doctor',pin:'5253',counters:['doctor']});assert.equal(created.status,200);
+ const doctor=await callApi('auth.staff_login',{},'',{name:'Correction Doctor',pin:'5253'});const cookie=parseCookie(doctor);
+ const registered=await callApi('participant.register',{name:'Correction Patient',phone:'9123456789',age:50,gender:'Male',consent:true,medicalHistory:['bp']},superCookie);assert.equal(registered.status,201);
+ const token=JSON.parse(registered.body).token;
+ await callApi('counter.save',{counter:'bp',token,systolic:160,diastolic:95,pulse:72},superCookie);
+ await callApi('counter.save',{counter:'sugar',token,sugar:180,testType:'Random'},superCookie);
+ const original=JSON.parse((await callApi('participant.find_token',{},cookie,{token})).body).data;
+ for(const changes of [{name:'Forbidden'},{its:'12341234'},{height:170},{advice:'Forbidden'},{bpSystolic:60,bpDiastolic:90},{bloodSugar:0},{sugarType:'Invalid'}]){
+  const invalid=await callApi('participant.update',{id:original.id,expectedUpdatedAt:original.updatedAt,changes},cookie);assert.ok([400,403].includes(invalid.status),JSON.stringify(changes));
+ }
+ assert.equal((await callApi('participant.update',{id:original.id,changes:{bloodSugar:150}},cookie)).status,400);
+ const corrected=await callApi('participant.update',{id:original.id,expectedUpdatedAt:original.updatedAt,changes:{bpSystolic:128,bpDiastolic:78,bloodSugar:135}},cookie);assert.equal(corrected.status,200);
+ const p=JSON.parse(corrected.body).data;assert.equal(p.bpSystolic,'128');assert.equal(p.bpDiastolic,'78');assert.equal(p.pulseBpm,'72');assert.equal(p.bloodSugar,'135');assert.equal(p.bpBy,'Correction Doctor');assert.equal(p.doctorAt,'');assert.equal(p.name,original.name);assert.equal(p.token,token);
+ assert.equal((await callApi('participant.update',{id:p.id,expectedUpdatedAt:original.updatedAt,changes:{bloodSugar:140}},cookie)).status,409);
+ for(const name of ['janab saab','Hasan']){const login=await callApi('auth.staff_login',{},'',{name,pin:'5253'});assert.equal((await callApi('participant.update',{id:p.id,expectedUpdatedAt:p.updatedAt,changes:{bloodSugar:140}},parseCookie(login))).status,403);}
+ const audit=JSON.parse((await callApi('audit.list',{},superCookie,{query:'doctor.readings.update'})).body).logs;
+ const entry=audit.find(row=>row.target_id===p.id);assert.equal(entry.actor_name,'Correction Doctor');const detail=JSON.parse(entry.details);assert.deepEqual(detail.changes.bloodSugar,{before:'180',after:'135'});assert.deepEqual(detail.changes.bpSystolic,{before:'160',after:'128'});
+ const revocation=await callApi('staff.update',{},superCookie,{id:JSON.parse(created.body).staff.id,name:'Correction Doctor',counters:[],canRegister:false});assert.equal(revocation.status,200);
+ assert.equal((await callApi('participant.update',{id:p.id,expectedUpdatedAt:p.updatedAt,changes:{bloodSugar:140}},cookie)).status,403);
+});

@@ -518,6 +518,7 @@ button, a, label.choice { touch-action: manipulation; }
 .summary-grid .reading-card .reading-value small{display:inline;font-size:15px;font-weight:650;color:#52645e;letter-spacing:0}
 .summary-grid .reading-card .health-badge.bp{color:#9f2533}.summary-grid .reading-card .health-badge.sugar{color:#174e93}.summary-grid .reading-card .health-badge.normal{color:#126443}.summary-grid .reading-card .health-badge.unknown{color:#52645e}
 .summary-grid .reading-card .reading-pulse{font-size:15px;color:#172f2a;margin-bottom:8px}
+.doctor-reading-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}.doctor-reading-actions .reading-heading{margin:0}
 @media(max-width:540px){.summary-grid .reading-card{grid-column:1/-1}}
 .dashboard-charts{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.35fr);gap:20px}.dashboard-charts h2{font-size:19px;margin:0 0 10px}.janab-metrics{grid-template-columns:repeat(4,minmax(0,1fr))}.janab-metrics .metric>span{font-size:13px}.janab-metrics strong{margin-top:12px}.janab-metrics .metric.bp{border-top:4px solid #b62e3d}.janab-metrics .metric.sugar{border-top:4px solid #2463b5}
 .history-pie{width:200px;height:200px;border-radius:50%;margin:22px auto;display:grid;place-items:center}.history-pie>div{width:132px;height:132px;background:white;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center}.history-pie strong{font-size:34px}.history-pie span{font-size:12px;color:var(--ink2)}

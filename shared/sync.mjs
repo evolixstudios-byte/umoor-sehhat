@@ -99,12 +99,12 @@ export async function processSyncQueue() {
             WHERE id = ?
           `).run(now, item.id));
 
-          if (payload.its) {
+          if (payload.serial || payload.its) {
             (await db.prepare(`
               UPDATE participants
               SET sync_status = 'synced', sync_error = NULL, last_synced_at = ?
-              WHERE its = ?
-            `).run(now, payload.its));
+              WHERE ${payload.serial ? 'serial' : 'its'} = ?
+            `).run(now, payload.serial || payload.its));
           }
           processed++;
         } else {
@@ -117,12 +117,12 @@ export async function processSyncQueue() {
           WHERE id = ?
         `).run(err.message, now, item.id));
 
-        if (payload.its) {
+        if (payload.serial || payload.its) {
           (await db.prepare(`
             UPDATE participants
             SET sync_status = 'failed', sync_error = ?
-            WHERE its = ?
-          `).run(err.message, payload.its));
+            WHERE ${payload.serial ? 'serial' : 'its'} = ?
+          `).run(err.message, payload.serial || payload.its));
         }
       }
     }

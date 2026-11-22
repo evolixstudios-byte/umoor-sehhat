@@ -88,6 +88,10 @@ On the doctor screen, **Print Report for Doctor** opens the device print dialog 
 
 The GitHub Actions workflow `.github/workflows/keep-backend-awake.yml` requests the backend health endpoint every five minutes and supports manual runs. It does not log in or change patient records. It checks that the response is valid JSON with `ok: true`. GitHub schedules can be delayed; this is a best-effort warm-up, not an uptime guarantee.
 
+ITS is optional on new registrations. Leave it blank when not applicable; if supplied it must contain eight digits and remain unique. Missing ITS is stored as SQL NULL; existing ITS values are preserved. Token, serial, name and phone support patient lookup. SQLite and PostgreSQL upgrades preserve existing patient and staff data. The optional Sheets connector uses the stable serial number for people without ITS, and still accepts legacy ITS-based sync messages.
+
+At the doctor counter, **Edit BP / Sugar** corrects BP, pulse and sugar readings before printing. The backend permits only those fields for a doctor, validates the values and rejects stale edits. Each correction records the editor, time and before/after values in the audit log. Consultation notes are preserved while the reading editor is open; correcting readings does not mark a consultation completed. Admin and Janab read-only accounts cannot make corrections.
+
 Use **Janab Login** with username `janab saab` and initial PIN `5253`. This account has read-only access to aggregate statistics, a history pie chart, and a daily registration line chart in India time. The pie counts each person once, with a separate group for both BP and diabetes. Flagged-reading counts remain separate from reported history. Refresh reloads current counts. Janab can view detailed participant records and prescriptions. Exports, staff management, and counter updates remain denied on the backend. The Super Admin can reset its PIN or deactivate it using existing staff controls.
 
 CSV exports include reported medical history. If using the optional Google Sheets backup, redeploy `google-apps-script/Code.gs` to add the new history column; existing columns and rows are preserved.

@@ -389,7 +389,8 @@ async function handleRequest(input) {
   }
 
   if (['participant.list', 'participant.get', 'participant.update', 'participant.delete'].includes(action)) {
-    if (!hasPermission(userPerms, PERMISSIONS.PARTICIPANT_VIEW)) return response({ ok:false, error:'Participant directory access denied.' },403);
+    const doctorEdit = action === 'participant.update' && hasPermission(userPerms, PERMISSIONS.COUNTER_DOCTOR);
+    if (!doctorEdit && !hasPermission(userPerms, PERMISSIONS.PARTICIPANT_VIEW)) return response({ ok:false, error:'Participant directory access denied.' },403);
     if (action === 'participant.list') {
       const query = String(payload.query || '').trim().slice(0,120);
       const limit = Number(payload.limit ?? 20), offset = Number(payload.offset ?? 0);
@@ -403,7 +404,7 @@ async function handleRequest(input) {
       const participants = await db.prepare(`SELECT id,token,serial,its,name,phone,age,gender,registered_at FROM participants ${where} ORDER BY CASE WHEN token = ? THEN 0 ELSE 1 END, token DESC LIMIT ? OFFSET ?`).all(...values,token,limit,offset);
       return response({ok:true,participants:participants.map(p=>({...p,tokenFormatted:formatTokenNumber(p.token)})),total,limit,offset});
     }
-    if (['participant.update','participant.delete'].includes(action) && session.type !== 'admin') return response({ok:false,error:'Only Super Admin can edit or delete participant records.'},403);
+    if (['participant.update','participant.delete'].includes(action) && session.type !== 'admin' && !doctorEdit) return response({ok:false,error:'Only Super Admin can edit or delete participant records.'},403);
     const data = ['participant.update','participant.delete'].includes(action) ? payload.data || payload : payload;
     const existing = await db.prepare('SELECT * FROM participants WHERE id = ?').get(String(data.id || ''));
     if (!existing) return response({ok:false,error:'Participant not found.'},404);
@@ -424,19 +425,20 @@ async function handleRequest(input) {
         await db.exec('ROLLBACK;');
         throw err;
       }
-      await queueSync('participant.delete',{its:existing.its});
+      await queueSync('participant.delete',{its:existing.its,serial:existing.serial});
       await logAudit({actorType:'admin',actorId:session.id,actorName:'Super Admin',actorRole:'Super Admin',action:'participant.delete',targetType:'participant',targetId:existing.id,details:{serial:existing.serial},ip:clientIp});
       return response({ok:true,message:'Participant and screening report deleted.'});
     }
     const changes = data.changes;
     const fields = {name:'name',its:'its',phone:'phone',age:'age',gender:'gender',medicalHistory:'medical_history',bpSystolic:'bp_systolic',bpDiastolic:'bp_diastolic',pulseBpm:'pulse_bpm',bloodSugar:'blood_sugar',sugarType:'sugar_type',height:'height',weight:'weight',advice:'advice'};
     if (!changes || typeof changes !== 'object' || Array.isArray(changes) || Object.keys(changes).some(key=>!Object.hasOwn(fields,key))) return response({ok:false,error:'Invalid editable fields. Token and serial cannot be changed.'},400);
+    if (session.type !== 'admin' && Object.keys(changes).some(key=>!['bpSystolic','bpDiastolic','pulseBpm','bloodSugar','sugarType'].includes(key))) return response({ok:false,error:'Doctors can correct only BP, pulse and blood sugar readings.'},403);
     if (!data.expectedUpdatedAt) return response({ok:false,error:'Reopen the record before editing.'},400);
     if (data.expectedUpdatedAt !== existing.updated_at) return response({ok:false,error:'This record has changed. Reopen it before saving.'},409);
     const updates = {};
     const has = key => Object.hasOwn(changes,key);
     if (has('name')) updates.name = safeText(changes.name,120,'Full name');
-    if (has('its')) updates.its = onlyDigits(changes.its,8,'ITS number');
+    if (has('its')) updates.its = String(changes.its ?? '').trim() ? onlyDigits(changes.its,8,'ITS number') : null;
     if (has('phone')) updates.phone = onlyDigits(changes.phone,10,'Mobile number');
     if (has('age')) {
       updates.age = parseNumber(changes.age,1,120,'Age');
@@ -449,7 +451,7 @@ async function handleRequest(input) {
     if (has('medicalHistory')) updates.medical_history = medicalHistoryValue(changes.medicalHistory);
     if (updates.its && (await db.prepare('SELECT id FROM participants WHERE its = ? AND id != ?').get(updates.its,existing.id))) return response({ok:false,error:'This ITS number belongs to another participant.'},409);
     const now = new Date(Math.max(Date.now(),Date.parse(existing.updated_at)+1)).toISOString();
-    const actor = 'Super Admin';
+    const actor = session.type === 'admin' ? 'Super Admin' : session.name;
     if (['bpSystolic','bpDiastolic','pulseBpm'].some(has)) {
       updates.bp_systolic = parseNumber(changes.bpSystolic ?? existing.bp_systolic,50,300,'Systolic BP');
       updates.bp_diastolic = parseNumber(changes.bpDiastolic ?? existing.bp_diastolic,30,200,'Diastolic BP');
@@ -483,12 +485,13 @@ async function handleRequest(input) {
       throw err;
     }
     if (!updated) return response({ok:false,error:'This record has changed. Reopen it before saving.'},409);
-    await queueSync('participant.update',{previousIts:existing.its,its:updated.its,name:updated.name,phone:updated.phone,age:updated.age,gender:updated.gender,medicalHistory:updated.medical_history ? JSON.parse(updated.medical_history) : null,consent:true});
-    if (updates.bp_at) await queueSync('stage.save',{stage:'bp',its:updated.its,systolic:updated.bp_systolic,diastolic:updated.bp_diastolic,pulse:updated.pulse_bpm});
-    if (updates.sugar_at) await queueSync('stage.save',{stage:'sugar',its:updated.its,sugar:updated.blood_sugar,testType:updated.sugar_type});
-    if (updates.measurements_at) await queueSync('stage.save',{stage:'measurements',its:updated.its,height:updated.height,weight:updated.weight});
-    if (updates.doctor_at) await queueSync('stage.save',{stage:'doctor',its:updated.its,advice:updated.advice});
-    await logAudit({actorType:'admin',actorId:session.id,actorName:actor,actorRole:actor,action:'participant.update',targetType:'participant',targetId:updated.id,details:{fields:Object.keys(changes)},ip:clientIp});
+    await queueSync('participant.update',{previousIts:existing.its,its:updated.its,serial:updated.serial,name:updated.name,phone:updated.phone,age:updated.age,gender:updated.gender,medicalHistory:updated.medical_history ? JSON.parse(updated.medical_history) : null,consent:true});
+    if (updates.bp_at) await queueSync('stage.save',{stage:'bp',its:updated.its,serial:updated.serial,systolic:updated.bp_systolic,diastolic:updated.bp_diastolic,pulse:updated.pulse_bpm});
+    if (updates.sugar_at) await queueSync('stage.save',{stage:'sugar',its:updated.its,serial:updated.serial,sugar:updated.blood_sugar,testType:updated.sugar_type});
+    if (updates.measurements_at) await queueSync('stage.save',{stage:'measurements',its:updated.its,serial:updated.serial,height:updated.height,weight:updated.weight});
+    if (updates.doctor_at) await queueSync('stage.save',{stage:'doctor',its:updated.its,serial:updated.serial,advice:updated.advice});
+    const before = formatParticipant(existing,userPerms), after = formatParticipant(updated,userPerms);
+    await logAudit({actorType:session.type,actorId:session.id,actorName:actor,actorRole:session.type === 'admin' ? 'Super Admin' : 'Doctor',action:session.type === 'admin' ? 'participant.update' : 'doctor.readings.update',targetType:'participant',targetId:updated.id,details:{fields:Object.keys(changes),changes:Object.fromEntries(Object.keys(changes).map(key=>[key,{before:before[key],after:after[key]}]))},ip:clientIp});
     return response({ok:true,message:'Participant record updated.',data:formatParticipant(updated,userPerms)});
   }
 
@@ -796,14 +799,14 @@ async function handleRequest(input) {
     const q = String(payload.query || '').trim();
     if (!q) return response({ ok: true, results: [] });
 
-    const likeTerm = `%${q}%`;
+    const likeTerm = `%${q.toLowerCase()}%`;
     const rows = (await db.prepare(`
       SELECT token, serial, its, name, phone, age, gender, bp_at, sugar_at, measurements_at, doctor_at
       FROM participants
-      WHERE its LIKE ? OR LOWER(name) LIKE ? OR serial LIKE ?
+      WHERE its LIKE ? OR LOWER(name) LIKE ? OR LOWER(serial) LIKE ? OR phone LIKE ?
       ORDER BY token DESC
       LIMIT 15
-    `).all(likeTerm, likeTerm, likeTerm));
+    `).all(likeTerm, likeTerm, likeTerm, likeTerm));
 
     return response({ ok: true, results: rows });
   }
@@ -854,7 +857,7 @@ async function handleRequest(input) {
         WHERE id = ?
       `).run(sys, dia, pulse, now, actorLabel, now, p.id));
 
-      await queueSync('stage.save', { stage: 'bp', its: p.its, systolic: sys, diastolic: dia, pulse });
+      await queueSync('stage.save', { stage: 'bp', its: p.its, serial:p.serial, systolic: sys, diastolic: dia, pulse });
 
       await logAudit({
         actorType: session.type,
@@ -886,7 +889,7 @@ async function handleRequest(input) {
         WHERE id = ?
       `).run(sugar, typ, now, actorLabel, now, p.id));
 
-      await queueSync('stage.save', { stage: 'sugar', its: p.its, sugar, testType: typ });
+      await queueSync('stage.save', { stage: 'sugar', its: p.its, serial:p.serial, sugar, testType: typ });
 
       await logAudit({
         actorType: session.type,
@@ -916,7 +919,7 @@ async function handleRequest(input) {
         WHERE id = ?
       `).run(h, w, bmi, now, actorLabel, now, p.id));
 
-      await queueSync('stage.save', { stage: 'measurements', its: p.its, height: h, weight: w });
+      await queueSync('stage.save', { stage: 'measurements', its: p.its, serial:p.serial, height: h, weight: w });
 
       await logAudit({
         actorType: session.type,
@@ -944,7 +947,7 @@ async function handleRequest(input) {
         WHERE id = ?
       `).run(note, now, actorLabel, now, p.id));
 
-      await queueSync('stage.save', { stage: 'doctor', its: p.its, advice: note });
+      await queueSync('stage.save', { stage: 'doctor', its: p.its, serial:p.serial, advice: note });
 
       await logAudit({
         actorType: session.type,
@@ -1004,7 +1007,7 @@ async function handleRequest(input) {
 
     const medicalHistory = data.medicalHistory;
     medicalHistoryValue(medicalHistory);
-    const its = onlyDigits(data.its, 8, 'ITS number');
+    const its = String(data.its ?? '').trim() ? onlyDigits(data.its, 8, 'ITS number') : null;
     const name = safeText(data.name, 120, 'Full name');
     const phone = onlyDigits(data.phone, 10, 'Mobile number');
     const age = parseNumber(data.age, 1, 120, 'Age');

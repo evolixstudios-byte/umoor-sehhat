@@ -125,7 +125,7 @@ export function initDb(customPath = null) {
       id TEXT PRIMARY KEY,
       token INTEGER NOT NULL UNIQUE,
       serial TEXT NOT NULL UNIQUE,
-      its TEXT NOT NULL UNIQUE,
+      its TEXT UNIQUE,
       name TEXT NOT NULL,
       phone TEXT NOT NULL,
       age INTEGER NOT NULL,
@@ -161,6 +161,21 @@ export function initDb(customPath = null) {
     CREATE INDEX IF NOT EXISTS idx_participants_name ON participants(name);
     CREATE INDEX IF NOT EXISTS idx_participants_updated ON participants(updated_at);
   `);
+
+  // SQLite needs a table rebuild to make existing ITS values optional.
+  if (db.prepare('PRAGMA table_info(participants)').all().find(column => column.name === 'its')?.notnull) {
+    const original = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='participants'").get().sql;
+    const schema = original.replace(/CREATE TABLE(?: IF NOT EXISTS)? participants/i,'CREATE TABLE participants_optional_its').replace(/\bits\s+TEXT\s+NOT\s+NULL/i,'its TEXT');
+    if (schema === original || /\bits\s+TEXT\s+NOT\s+NULL/i.test(schema)) throw new Error('Cannot safely migrate the ITS column.');
+    const indexes = db.prepare("SELECT sql FROM sqlite_master WHERE type='index' AND tbl_name='participants' AND sql IS NOT NULL").all();
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      db.exec(schema);
+      db.exec('INSERT INTO participants_optional_its SELECT * FROM participants; DROP TABLE participants; ALTER TABLE participants_optional_its RENAME TO participants;');
+      for (const index of indexes) db.exec(index.sql);
+      db.exec('COMMIT');
+    } catch (err) { db.exec('ROLLBACK'); throw err; }
+  }
 
   // Migration for pulse_bpm column in existing participants table
   try {

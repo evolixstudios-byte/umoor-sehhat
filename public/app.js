@@ -101,6 +101,7 @@ const state = {
   regSuccess: null,
 
   regConflict: null,
+  regRequest: null,
 
   // Native numeric input state
 
@@ -127,8 +128,8 @@ const state = {
     measWeight: '',
 
     regName: '',
-
     regIts: '',
+
 
     regPhone: '',
 
@@ -395,9 +396,7 @@ function confirmField() {
   if (state.page === 'registration') {
 
     if (state.activeField === 'regIts') {
-
       focusField('regPhone');
-
     } else if (state.activeField === 'regPhone') {
 
       focusField('regAge');
@@ -722,7 +721,7 @@ function tokenEntryHtml(counterConfig) {
 
         <button type="button" class="text-link" id="open-fallback-search">
 
-          ${icon('search', 'sm')} Lost token? Search by ITS or Name
+          ${icon('search', 'sm')} Lost token? Search by Name or Phone
 
         </button>
 
@@ -756,7 +755,7 @@ function participantBannerHtml(p) {
 
           <strong>${esc(p.name)}</strong>
 
-          <small>${esc(p.serial)} • ITS: <b>${esc(p.its)}</b> • ${esc(p.age)} yrs • ${esc(p.gender)} • 📞 ${esc(p.phone)}</small>
+          <small>${esc(p.serial)}${p.its ? ` • ITS: <b>${esc(p.its)}</b>` : ''} • ${esc(p.age)} yrs • ${esc(p.gender)} • 📞 ${esc(p.phone)}</small>
 
         </div>
 
@@ -1168,7 +1167,7 @@ function counter4DoctorHtml() {
 
       ${medicalHistoryHtml(p.medicalHistory)}
 
-      <h3 class="reading-heading">Today's screening readings</h3>
+      <div class="doctor-reading-actions"><h3 class="reading-heading">Today's screening readings</h3><button type="button" class="btn secondary" id="doctor-edit-readings-btn">Edit BP / Sugar</button></div>
 
       <p class="reading-note">Screening flags only. Confirm readings and assess clinical context.</p>
 
@@ -1336,13 +1335,13 @@ function registrationSuccessViewHtml() {
 
           </div>
 
-          <div class="token-summary-item">
+          ${p.its ? `<div class="token-summary-item">
 
             <span class="summary-label">ITS Number</span>
 
             <strong class="summary-value">${esc(p.its || '')}</strong>
 
-          </div>
+          </div>` : ''}
 
           <div class="token-summary-item">
 
@@ -1412,7 +1411,7 @@ function printableMedicalReportHtml() {
     </header>
     <dl class="report-identity">
       <div><dt>Participant</dt><dd>${esc(p.name)}</dd></div><div><dt>Token / Serial</dt><dd>#${esc(p.tokenFormatted)} / ${esc(p.serial)}</dd></div>
-      <div><dt>ITS number</dt><dd>${esc(p.its)}</dd></div><div><dt>Mobile number</dt><dd>${esc(p.phone)}</dd></div>
+      ${p.its ? `<div><dt>ITS number</dt><dd>${esc(p.its)}</dd></div>` : ''}<div><dt>Mobile number</dt><dd>${esc(p.phone)}</dd></div>
       <div><dt>Age / Gender</dt><dd>${esc(p.age)} years / ${esc(p.gender)}</dd></div><div><dt>Consent</dt><dd>${p.consent ? 'Recorded' : 'Not recorded'}</dd></div>
       <div><dt>Registered</dt><dd>${esc(stamp(p.registeredAt))}</dd></div><div><dt>Registered by</dt><dd>${esc(p.registeredBy || '—')}</dd></div>
     </dl>
@@ -1486,7 +1485,7 @@ function printableSlipHtml() {
 
         <div class="slip-info-row"><span>Name:</span> <strong>${esc(p.name || '—')}</strong></div>
 
-        <div class="slip-info-row"><span>ITS:</span> <strong>${esc(p.its || '—')}</strong></div>
+        ${p.its ? `<div class="slip-info-row"><span>ITS:</span> <strong>${esc(p.its)}</strong></div>` : ''}
 
         <div class="slip-info-row"><span>Mobile:</span> <strong>${esc(p.phone || '—')}</strong></div>
 
@@ -1604,8 +1603,8 @@ function registrationViewHtml() {
 
           <div class="field-grid" style="margin-bottom:14px;">
 
-            ${numericFieldHtml('regIts', '8-digit ITS Number *', 'e.g. 12345678')}
 
+            ${numericFieldHtml('regIts', 'ITS number (optional)', 'Leave blank if not applicable')}
             ${numericFieldHtml('regPhone', '10-digit Mobile Number *', 'e.g. 9820012345')}
 
           </div>
@@ -2406,7 +2405,7 @@ function participantsViewHtml() {
     </form>
     <p class="reading-note" role="status">${directory.error ? esc(directory.error) : `${directory.total} registered participants &middot; Showing ${start}-${Math.min(directory.offset+20,directory.total)}`}</p>
     <div class="participant-list">${directory.participants.map(p=>`<article class="panel participant-row">
-      <span class="token-tag">#${esc(p.tokenFormatted)}</span><div class="participant-row-details"><h2>${esc(p.name)}</h2><p>ITS ${esc(p.its)} &middot; ${esc(p.age)} yrs &middot; ${esc(p.gender)}</p><p>${esc(p.phone)}</p></div>
+      <span class="token-tag">#${esc(p.tokenFormatted)}</span><div class="participant-row-details"><h2>${esc(p.name)}</h2><p>${p.its ? `ITS ${esc(p.its)} &middot; ` : ''}${esc(p.age)} yrs &middot; ${esc(p.gender)}</p><p>${esc(p.phone)}</p></div>
       <button type="button" class="btn secondary" data-view-participant="${esc(p.id)}">View details</button>
     </article>`).join('') || '<div class="panel panel-pad">No matching participants.</div>'}</div>
     <div class="participant-pagination"><button type="button" class="btn secondary" id="participant-prev" ${directory.offset===0 ? 'disabled' : ''}>Previous</button><button type="button" class="btn secondary" id="participant-next" ${directory.offset+20>=directory.total ? 'disabled' : ''}>Next</button></div>
@@ -2428,7 +2427,7 @@ function participantEditorHtml(p) {
       <div class="modal-body">
         <p class="reading-note">Token and serial stay fixed. Existing readings cannot be cleared here.</p>
         <fieldset><legend>Registration details</legend><div class="field-grid">
-          ${input('name','Full name',false,120)}${input('its','ITS number',true,8)}${input('phone','Mobile number',true,10)}${input('age','Age',true,3)}
+          ${input('name','Full name',false,120)}${input('its','ITS number (optional)',true,8)}${input('phone','Mobile number',true,10)}${input('age','Age',true,3)}
           <div class="field"><label for="edit-p-gender">Gender</label><select class="control" id="edit-p-gender" data-edit-field="gender">${['Male','Female'].map(value=>`<option ${p.gender===value ? 'selected' : ''}>${value}</option>`).join('')}</select></div>
         </div></fieldset>
         <fieldset class="history-fieldset"><legend>Reported medical history</legend><div class="history-options">${HISTORY_OPTIONS.map(option=>`<label class="history-choice ${option.tone}"><input type="checkbox" name="editMedicalHistory" value="${option.id}" ${p.medicalHistory?.includes(option.id) ? 'checked' : ''} /><span>${esc(option.label)}</span></label>`).join('')}</div>${!p.medicalHistory ? '<small>History was not recorded. Leave unchanged or choose a reported history.</small>' : ''}</fieldset>
@@ -2442,8 +2441,21 @@ function participantEditorHtml(p) {
   </div></div>`;
 }
 
+function doctorReadingsEditorHtml(p) {
+  const field = (key,label,decimal=false) => `<div class="field"><label for="doctor-edit-${key}">${label}</label><input class="control" id="doctor-edit-${key}" data-doctor-reading="${key}" type="text" inputmode="${decimal ? 'decimal' : 'numeric'}" value="${esc(p[key] || '')}" /></div>`;
+  return `<div class="modal-backdrop"><div class="modal-box large" role="dialog" aria-modal="true" aria-labelledby="doctor-readings-title">
+    <div class="modal-head"><h3 id="doctor-readings-title">Correct readings · Token #${esc(p.tokenFormatted)}</h3><button type="button" class="close-modal-btn" aria-label="Close reading editor">${icon('close')}</button></div>
+    <form id="doctor-readings-form" class="participant-editor"><div class="modal-body">
+      <p class="reading-note">Change only the values that need correction. Fill all values in a group when adding a missing reading. Changes are recorded with your name and time.</p>
+      <fieldset><legend>Blood pressure and pulse</legend><div class="field-grid">${field('bpSystolic','Systolic BP (mmHg)')}${field('bpDiastolic','Diastolic BP (mmHg)')}${field('pulseBpm','Pulse (BPM)')}</div></fieldset>
+      <fieldset><legend>Blood sugar</legend><div class="field-grid">${field('bloodSugar','Blood sugar (mg/dL)',true)}<div class="field"><label for="doctor-edit-sugarType">Test type</label><select class="control" id="doctor-edit-sugarType" data-doctor-reading="sugarType"><option value="">Not recorded</option>${['Fasting','Random','Post-meal'].map(value=>`<option ${p.sugarType===value ? 'selected' : ''}>${value}</option>`).join('')}</select></div></div></fieldset>
+    </div><div class="modal-foot"><button type="button" class="btn secondary close-modal-btn">Cancel</button><button type="submit" class="btn primary" id="doctor-readings-save">Save corrections</button></div></form>
+  </div></div>`;
+}
+
 function modalHtml() {
   if (state.modal === 'edit_participant') return participantEditorHtml(state.modalData);
+  if (state.modal === 'edit_readings') return doctorReadingsEditorHtml(state.modalData);
 
   if (!state.modal) return '';
 
@@ -2459,7 +2471,7 @@ function modalHtml() {
 
           <div class="modal-head">
 
-            <h3>Find Participant by ITS or Name</h3>
+            <h3>Find Participant by Name or Phone</h3>
 
             <button type="button" class="close-modal-btn">${icon('close')}</button>
 
@@ -2469,9 +2481,9 @@ function modalHtml() {
 
             <div class="field">
 
-              <label for="fallback-query-input">Enter 8-digit ITS or Name</label>
+              <label for="fallback-query-input">Enter name, mobile number, or an existing ITS</label>
 
-              <input class="control" id="fallback-query-input" placeholder="Type name or ITS number..." value="${esc(state.fallbackQuery)}" autofocus />
+              <input class="control" id="fallback-query-input" placeholder="Type name or mobile number..." value="${esc(state.fallbackQuery)}" autofocus />
 
             </div>
 
@@ -2951,13 +2963,13 @@ function modalHtml() {
 
               </div>
 
-              <div class="panel" style="padding:12px;background:#f9fcfb;">
+              ${p.its ? `<div class="panel" style="padding:12px;background:#f9fcfb;">
 
                 <span class="tiny muted" style="display:block;">ITS Number</span>
 
                 <strong style="font-size:16px;">${esc(p.its)}</strong>
 
-              </div>
+              </div>` : ''}
 
               <div class="panel" style="padding:12px;background:#f9fcfb;">
 
@@ -3219,8 +3231,8 @@ async function submitRegistrationForm() {
   const nameInput = document.getElementById('reg-name-input');
 
   const name = (nameInput ? nameInput.value : state.fields.regName || '').trim();
-
   const its = String(state.fields.regIts || '').trim();
+
 
   const phone = String(state.fields.regPhone || '').trim();
 
@@ -3241,16 +3253,6 @@ async function submitRegistrationForm() {
     notify('Participant full name is required.', true);
 
     nameInput?.focus();
-
-    return;
-
-  }
-
-  if (!/^[0-9]{8}$/.test(its)) {
-
-    notify('ITS Number must contain exactly 8 digits.', true);
-
-    focusField('regIts');
 
     return;
 
@@ -3298,7 +3300,14 @@ async function submitRegistrationForm() {
 
 
 
-  const clientRequestId = 'reg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
+  if (its && !/^[0-9]{8}$/.test(its)) {
+    notify('Enter an 8-digit ITS number, or leave it blank.',true);
+    focusField('regIts');
+    return;
+  }
+  const fingerprint = JSON.stringify([name,its,phone,ageNum,gender,state.regMedicalHistory]);
+  if (state.regRequest?.fingerprint !== fingerprint) state.regRequest = {fingerprint,id:'reg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9)};
+  const clientRequestId = state.regRequest.id;
 
   state.isSubmitting = true;
 
@@ -3307,6 +3316,7 @@ async function submitRegistrationForm() {
 
 
   const submitBtn = document.getElementById('submit-reg-btn');
+  const submitLabel = submitBtn?.innerHTML;
 
   if (submitBtn) {
 
@@ -3324,7 +3334,6 @@ async function submitRegistrationForm() {
 
       name,
 
-      its,
 
       phone,
 
@@ -3337,6 +3346,7 @@ async function submitRegistrationForm() {
       consent: true,
 
       clientRequestId,
+      ...(its ? {its} : {}),
 
     });
 
@@ -3344,6 +3354,7 @@ async function submitRegistrationForm() {
 
     if (res?.ok) {
 
+      state.regRequest = null;
       notify(`✓ Registration Successful! Token #${res.tokenFormatted || res.data?.tokenFormatted || res.data?.token}`);
 
       state.regSuccess = {
@@ -3357,8 +3368,8 @@ async function submitRegistrationForm() {
       };
 
       state.fields.regName = '';
-
       state.fields.regIts = '';
+
 
       state.fields.regPhone = '';
 
@@ -3389,6 +3400,7 @@ async function submitRegistrationForm() {
   } finally {
 
     state.isSubmitting = false;
+    if (submitBtn?.isConnected) {submitBtn.disabled=false;submitBtn.innerHTML=submitLabel;}
 
   }
 
@@ -3638,6 +3650,39 @@ function resetCounterForm() {
 
 
 function attachEvents() {
+  const readingDialog=document.getElementById('doctor-readings-form')?.closest('[role="dialog"]');
+  readingDialog?.addEventListener('keydown',event=>{
+    if(event.key==='Escape') {event.preventDefault();readingDialog.querySelector('.close-modal-btn').click();}
+    if(event.key==='Tab') {
+      const fields=[...readingDialog.querySelectorAll('button:not(:disabled),input:not(:disabled),select:not(:disabled)')];
+      if(event.shiftKey && document.activeElement===fields[0]) {event.preventDefault();fields.at(-1).focus();}
+      else if(!event.shiftKey && document.activeElement===fields.at(-1)) {event.preventDefault();fields[0].focus();}
+    }
+  });
+  document.getElementById('doctor-edit-readings-btn')?.addEventListener('click',async()=>{
+    state.fields.doctorAdvice = document.getElementById('doctor-prescription-input')?.value || '';
+    try {
+      const result = await call('participant.find_token',{}, {token:state.participant.token});
+      if (result?.ok && result.data.id === state.participant?.id) {
+        state.participant = result.data; state.modalData = result.data; state.modal = 'edit_readings'; render();
+        document.getElementById('doctor-edit-bpSystolic')?.focus();
+      }
+    } catch {}
+  });
+  document.getElementById('doctor-readings-form')?.addEventListener('submit',async event=>{
+    event.preventDefault();
+    const original = state.modalData, changes = {};
+    document.querySelectorAll('[data-doctor-reading]').forEach(input=>{
+      const key=input.dataset.doctorReading, value=input.value.trim();
+      if (value !== String(original[key] ?? '')) changes[key]=value;
+    });
+    if (!Object.keys(changes).length) {state.modal=null;render();return;}
+    const button=document.getElementById('doctor-readings-save');button.disabled=true;
+    try {
+      const result=await call('participant.update',{id:original.id,expectedUpdatedAt:original.updatedAt,changes});
+      if(result?.ok && state.participant?.id===original.id) {state.participant=result.data;state.modal=null;state.modalData=null;notify('Readings corrected. Report updated.');render();document.getElementById('doctor-edit-readings-btn')?.focus();}
+    } catch {} finally {button.disabled=false;}
+  });
   document.getElementById('doctor-print-btn')?.addEventListener('click',printMedicalReport);
   document.getElementById('delete-participant-btn')?.addEventListener('click',async event=>{
     const p=state.modalData;
@@ -3966,13 +4011,13 @@ function attachEvents() {
 
         e.preventDefault();
 
-        if (state.fields.regIts && state.fields.regPhone && state.fields.regAge) {
+        if (state.fields.regPhone && state.fields.regAge) {
 
           submitRegistrationForm();
 
         } else {
 
-          focusField('regIts');
+          focusField('regPhone');
 
         }
 
@@ -4005,8 +4050,8 @@ function attachEvents() {
     state.regConflict = null;
 
     state.fields.regName = '';
-
     state.fields.regIts = '';
+
 
     state.fields.regPhone = '';
 
@@ -4018,7 +4063,7 @@ function attachEvents() {
 
     state.regMedicalHistory = [];
 
-    state.activeField = 'regIts';
+    state.activeField = 'regPhone';
 
     render();
 
@@ -4596,9 +4641,11 @@ function attachEvents() {
 
     btn.addEventListener('click', () => {
 
+      const returnToReadings=state.modal==='edit_readings';
       state.modal = null;
 
       render();
+      if(returnToReadings) document.getElementById('doctor-edit-readings-btn')?.focus();
 
     });
 
