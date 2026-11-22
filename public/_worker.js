@@ -14,15 +14,15 @@ export default {
       headers.set('X-Forwarded-Proto', 'https');
       headers.set('X-Forwarded-For', request.headers.get('CF-Connecting-IP') || '');
       const body = await request.text();
-      let result = await fetch(target, { method: 'POST', headers, body, redirect: 'manual' });
-      if ([502,503,504].includes(result.status) && ['auth.status','auth.staff_login','auth.admin_login'].includes(JSON.parse(body).action)) {
-        await result.body?.cancel();
-        // A sleeping Render service can reject POSTs until a health request wakes it.
-        const health = await fetch(new URL('/healthz', target), { signal: AbortSignal.timeout(60000) });
-        await health.body?.cancel();
-        if (health.ok) result = await fetch(target, { method: 'POST', headers, body, redirect: 'manual' });
+      if (['auth.status','auth.staff_login','auth.admin_login'].includes(JSON.parse(body).action)) {
+        // Wake Render with GET before sending credentials; a sleeping service can reject POST immediately.
+        const health = await fetch(new URL('/healthz', target), { signal: AbortSignal.timeout(15000), headers:{'Cache-Control':'no-cache'}, redirect:'manual' });
+        const ready = health.ok && health.headers.get('Content-Type')?.includes('application/json') && (await health.json()).ok === true;
+        if (!health.bodyUsed) await health.body?.cancel();
+        if (!ready) return Response.json({ok:false,error:'Server is waking up. Please wait.'},{status:503,headers:{'Cache-Control':'no-store'}});
       }
-      if (!result.headers.get('Content-Type')?.includes('application/json')) {
+      const result = await fetch(target, { method: 'POST', headers, body, redirect: 'manual' });
+      if (!['application/json','text/csv'].some(type=>result.headers.get('Content-Type')?.includes(type))) {
         await result.body?.cancel();
         return Response.json({ok:false,error:'The server is starting. Please try signing in again in a moment.'},{status:503,headers:{'Cache-Control':'no-store'}});
       }
